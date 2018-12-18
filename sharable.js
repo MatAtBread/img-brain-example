@@ -2,9 +2,9 @@ const config = {
     elasticsearch:{
       "apiVersion": "6.3",
       "hosts": [
-          "esrta-client-a1:9200",
-          "esrta-client-a2:9200",
-          "esrta-client-a3:9200"
+          "54.73.0.229:9200"
+//          "esrta-client-a2:9200",
+//          "esrta-client-a3:9200"
       ]
     }
 };
