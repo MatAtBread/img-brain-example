@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>brain.js</title>
+<script src="../node_modules/brain.js/browser.js"></script>
+<style>
+canvas {
+	background-color: #889;
+	display: inline-block;
+	border: 1px solid #ccc;
+}
+</style>
+</head>
+<body>
+	<div>
+        <input id="function" type="text" style="width: 60em"
+            value="(Math.sin(x*10)*Math.cos(y*7)+1.5)/3">
+        <input id="layers" type="text" style="width: 40em"
+            value="[12]">
+		<button id="go" onclick="go()">Go</button>
+		<button id="stop" onclick="stop()" disabled="true">Stop</button>
+	</div>
+	<div id="info" style="height: 2em"></div>
+	<canvas id="target" width="400" height="400"></canvas>
+	<canvas id="result" width="400" height="400"></canvas>
+	<canvas id="diff" width="400" height="400"></canvas>
+</body>
+<script>
+var stopping ;
+
+function breathe() {
+  return new Promise(function(resolve){ setTimeout(resolve,0) }) ;
+}
+
+function stop(){
+  stopping = true ;
+  document.getElementById('stop').disabled = true;
+}
+
+async function go() {
+  var info = document.getElementById('info');
+  let fn ;
+
+  stopping = false ;
+  
+  try {
+    fn = new Function("x,y","return "+document.getElementById('function').value);
+  } catch (ex) {
+    info.textContent = ex.message;  
+  }
+
+  document.getElementById('go').disabled = true;
+  document.getElementById('stop').disabled = false;
+  
+  var target = document.getElementById('target').getContext('2d');
+  var result = document.getElementById('result').getContext('2d');
+  var diff = document.getElementById('diff').getContext('2d');
+  target.clearRect(0,0,400,400);
+
+  /* x and y between 0 and 1 */
+  function dot(ctx,x,y,c,n){
+    ctx.fillStyle = 'rgb('+c+')';
+    ctx.fillRect(x*400,y*400,n,n);
+  }
+
+  var data = [] ;
+  for (let i=0; i<300; i++) {
+    let x = Math.random() ;
+    let y = Math.random() ;
+    let z = fn(x,y) ;
+    if (z>1 || z<0)
+      console.log("Out of range",x,y,z)
+    dot(target,x,y,[z*255,z*255,z*255],3);
+    data.push({input:[x,y], output:[z]});
+  }
+
+  function runNet() {
+    for (let x=0; x<=1; x += 0.02) {
+      for (let y=0; y<=1; y += 0.02) {
+          let z0 = fn(x,y) ;
+//          dot(target,x,y,[z1*255,z1*255,z1*255],4);
+          let z2 = net.run([x,y]) ;
+          dot(result,x,y,[z2*255,z2*255,z2*255],8);
+          let z1 = (z0-z2+1)/2 ;
+          dot(diff,x,y,[z1*255,z1*255,z1*255],8);
+      }
+    }
+  }
+
+  var net = new brain.NeuralNetwork({
+    activation: 'sigmoid', // activation function
+    hiddenLayers: eval("("+document.getElementById('layers').value+")")
+  }) ;
+
+  let count = 0, trainOpts = {
+      iterations: 100,    // the maximum times to iterate the training data --> number greater than 0
+      errorThresh: 1e-6,   // the acceptable error percentage from training data --> number between 0 and 1
+      log:false
+    } ;
+  while (!stopping) {
+    count += 1 ;
+    let state = net.train(data, trainOpts) ;
+    info.textContent = JSON.stringify({count: count*trainOpts.iterations,error: state.error}) ;
+    runNet();
+    await breathe();
+  }
+  
+  runNet() ;  
+  document.getElementById('go').disabled = false;
+  document.getElementById('stop').disabled = true;
+}
+</script>
+</html>

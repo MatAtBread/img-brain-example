@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>brain.js</title>
+<script src="../node_modules/brain.js/browser.js"></script>
+<style>
+canvas {
+	background-color: #889;
+	display: inline-block;
+	border: 1px solid #ccc;
+}
+</style>
+</head>
+<body>
+	<div>
+		<input id="layers" type="text" style="width: 40em" value="[16]">
+		<button id="go" onclick="go()">Go</button>
+		<button id="stop" onclick="stop()" disabled="true">Stop</button>
+	</div>
+	<div id="info" style="height: 2em"></div>
+	<canvas crossorigin="" id="target" width="400" height="400"></canvas>
+	<canvas id="result" width="400" height="400"></canvas>
+	<canvas id="diff" width="400" height="400"></canvas>
+</body>
+<script>
+var stopping, info, target,result,diff  ;
+
+function breathe() {
+  return new Promise(function(resolve){ setTimeout(resolve,0) }) ;
+}
+
+async function init(){
+  info = document.getElementById('info');
+  img = new Image();
+  img.src = "./image.jpeg";//"http://d1afx9quaogywf.cloudfront.net/sites/default/files/Logos/Twitter400x2302.png" ;
+  await new Promise(function(resolve,reject){ img.onload = resolve }) ;
+
+  [target,result,diff] = ['target','result','diff'].map(id => {
+    let e = document.getElementById(id) ;
+    e.height = img.naturalHeight;
+    e.width = img.naturalWidth;
+    return e.getContext('2d');
+  }) ;
+  result.clearRect(0,0,img.naturalWidth,img.naturalHeight);
+  diff.clearRect(0,0,img.naturalWidth,img.naturalHeight);
+  target.drawImage(img,0,0);
+}
+
+function stop(){
+  stopping = true ;
+  document.getElementById('stop').disabled = true;
+}
+
+async function go() {
+  try {
+  let fn ;
+
+  stopping = false ;
+
+  document.getElementById('go').disabled = true;
+  document.getElementById('stop').disabled = false;
+
+  await init() ;
+  var imgData = target.getImageData(0,0,img.naturalWidth,img.naturalHeight).data;
+
+  function pixelAt(x,y){
+    y = y*img.naturalHeight|0;
+    x = x*img.naturalWidth|0;
+    let offset = (y * img.naturalWidth + x) * 4;
+    return [imgData[offset]/256,imgData[offset+1]/256,imgData[offset+2]/256];
+  }
+  
+  function dot(ctx,x,y,c,n=1){
+    ctx.fillStyle = 'rgb('+c.map(z => z*256|0)+')';
+    ctx.fillRect(x*img.naturalWidth,y*img.naturalHeight,n,n);
+  }
+
+  var data = [] ;
+  for (let i=0; i<1000; i++) {
+    let x = Math.random() ;
+    let y = Math.random() ;
+    let z = pixelAt(x,y) ;
+    data.push({input:[x,y], output:z});
+  }
+  
+  target.clearRect(0,0,img.naturalWidth,img.naturalHeight);
+  data.forEach(d => dot(target,d.input[0], d.input[1], d.output));
+
+  await breathe();
+  
+  function runNet() {
+    for (let x=0; x<=1; x += (1/img.naturalWidth)) {
+      for (let y=0; y<=1; y += (1/img.naturalHeight)) {
+          let z0 = pixelAt(x,y) ;
+          let z1 = net.run([x,y]) ;
+          dot(result,x,y,z1);
+          let z2 = z0.map((z,i) => (z-z1[i]+1)/2) ;
+          dot(diff,x,y,z2);
+      }
+    }
+  }
+
+  var net = new brain.NeuralNetwork({
+    activation: 'sigmoid', // activation function
+    hiddenLayers: eval("("+document.getElementById('layers').value+")")
+  }) ;
+
+  let count = 0, trainOpts = {
+      iterations: 100,    // the maximum times to iterate the training data --> number greater than 0
+      errorThresh: 1e-6,   // the acceptable error percentage from training data --> number between 0 and 1
+      log:false
+    } ;
+  while (!stopping) {
+    count += 1 ;
+    let state = net.train(data, trainOpts) ;
+    info.textContent = JSON.stringify({count: count*trainOpts.iterations,error: state.error}) ;
+    runNet();
+    await breathe();
+  }
+  
+  runNet() ;  
+
+  document.getElementById('go').disabled = false;
+  document.getElementById('stop').disabled = true;
+  } catch (ex) {
+    info.textContent = ex.message;
+  } 
+}
+
+init();
+</script>
+</html>
