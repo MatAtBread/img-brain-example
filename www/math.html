@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>brain.js</title>
+    <script src="../node_modules/brain.js/browser.js"></script>
+</head>
+<body>
+<div>
+<input id="function" type="text" style="width: 60em" value="Math.abs(Math.sin(x*7)/3)+0.2" xx="Math.sin(x*13)/8+0.2"><button onclick="go()"">Go</button>
+</div>
+<div id="info"></div>
+<canvas id="canvas" width="400" height="400" style="border: 1px solid #ccc; display: block">
+</canvas>
+</body>
+<script>
+function wordParameter(s){
+  s = s.toUpperCase();
+  let acc = s.length/32 ;
+  let end = Math.min(s.length,9);
+  for (let i=0; i<end; i++)
+    acc += (s.charCodeAt(i)-64)/Math.pow(2,10+i*5);
+  return acc;
+}
+function stringToParameter(s) {
+  return s.split(/[^a-zA-Z]+/).map(wordParameter);
+}
+function parameterWord(n) {
+  if (Array.isArray(n))
+    return n.map(parameterWord)
+  var c = [] ;
+  n = (n*32) ;
+  var l = n&0x1F ;
+  while (n%1) {
+    n = (n*32) ;
+    c.push((n&0x1F)+64);
+  }
+  return String.fromCharCode(...c).padEnd(l,'?');
+}
+
+
+function go() {
+  var canvas = document.getElementById('canvas');
+  var info = document.getElementById('info');
+  var ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0,400,400);
+
+  var net = new brain.NeuralNetwork({
+//    activation: 'sigmoid', // activation function
+//    hiddenLayers: [4,3]
+}) ;
+  
+  /* x and y between 0 and 1 */
+  function dot(x,y,c,n){
+    ctx.fillStyle = 'rgb('+c+')';
+    ctx.fillRect(x*400,y*400,n,n);
+  }
+
+  var data = [], n = 200 ;
+  var fn = new Function("x","return "+document.getElementById('function').value);
+  for (let i=0; i<1000; i++) {
+    let x = Math.random() ;
+    let y = fn(x) ;
+    dot(x,y,[200,120,120],1);
+    data.push({input:[x], output:[y]});
+    /*if (data.length > 100) {
+      console.log(i,
+	      net.train(data, {
+	        iterations: 1000,    // the maximum times to iterate the training data --> number greater than 0
+	        errorThresh: 0.0005,   // the acceptable error percentage from training data --> number between 0 and 1
+	        log:false,
+	      }));
+      runNet([n,n,0])
+      n -= 10 ; if (n<0) n = 0 ;
+      data = [];
+    }*/
+  }
+  
+  function runNet(c = [0,0,200]) {
+    for (let i=0; i<100; i++) {
+      let x = i/100 ;
+      let y = net.run([x]) ;
+      dot(x,y,c,3);
+    }
+  }
+  
+  console.log(net.train(data, {
+    iterations: 20000,    // the maximum times to iterate the training data --> number greater than 0
+    errorThresh: 0.0005,   // the acceptable error percentage from training data --> number between 0 and 1
+    log:true
+  }));
+  
+  runNet() ;  
+  
+}
+</script>
+</html>

@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>brain.js</title>
+    <script src=".//node_modules/brain.js/browser.js"></script>
+</head>
+<body>
+<div>
+<textarea id="text" style="width: 60em; height: 8em; display: block"></textarea>
+<button onclick="go()">Train</button>
+</div>
+<input id="test"><button onclick="test()">Test</button>
+<div id="info"></div>
+</body>
+<script>
+function wordParameter(s){
+  s = s.toUpperCase();
+  let acc = s.length/32 ;
+  let end = Math.min(s.length,9);
+  for (let i=0; i<end; i++)
+    acc += (s.charCodeAt(i)-64)/Math.pow(2,10+i*5);
+  return acc;
+}
+function stringToParameter(s) {
+  return s.split(/[^a-zA-Z]+/).map(wordParameter);
+}
+function parameterWord(n) {
+  if (Array.isArray(n))
+    return n.map(parameterWord)
+  var c = [] ;
+  n = (n*32) ;
+  var l = n&0x1F ;
+  while (n%1) {
+    n = (n*32) ;
+    c.push((n&0x1F)+64);
+  }
+  return String.fromCharCode(...c).padEnd(l,'?');
+}
+
+var net = new brain.NeuralNetwork({}) ;
+function go() {
+  var text = document.getElementById('text').value;
+  var info = document.getElementById('info');
+  
+  let p = stringToParameter(text);
+  info.textContent = parameterWord(p);
+
+  var data = [] ;
+  for (let i=0; i<p.length-3; i++)
+    data.push({input:[p[i],p[i+1],p[i+2]], output:[p[i+3]]}) ;
+  
+  console.log(net.train(data, {
+    iterations: 10000,    // the maximum times to iterate the training data --> number greater than 0
+    errorThresh: 0.0005,   // the acceptable error percentage from training data --> number between 0 and 1
+    log:true
+  }));
+}
+
+function test(){
+  var info = document.getElementById('info');
+
+  console.log(parameterWord(net.run(stringToParameter(document.getElementById('test').value))))
+}
+
+</script>
+</html>
