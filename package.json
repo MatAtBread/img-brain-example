@@ -1,19 +1,16 @@
 {
-  "name": "train",
+  "name": "img-brain-example",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
   "dependencies": {
-    "@tensorflow/tfjs": "^0.14.1",
     "brain.js": "^1.6.1",
-    "elasticsearch": "^15.2.0",
-    "node-fetch": "^2.3.0"
+    "http-server": "^0.11.1"
   },
   "devDependencies": {},
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "web": "python -m SimpleHTTPServer 8000"
+    "web": "./node_modules/http-server/bin/http-server www"
   },
-  "author": "",
+  "author": "matAtBread",
   "license": "ISC"
 }
