@@ -65,8 +65,7 @@ function breathe() {
   return new Promise(function(resolve){ setTimeout(resolve,0) }) ;
 }
 
-const ui = Array.from(document.getElementsByTagName("*")).reduce((a,e)=>(e.id?(a[e.id] = e):0,a),{});
-
+const ui = Array.from(document.getElementsByTagName("*")).reduce((a,e)=>(e.id && (a[e.id] = e),a),{});
 
 async function init(){
   img = new Image()
