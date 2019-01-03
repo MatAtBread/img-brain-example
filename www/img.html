@@ -4,6 +4,11 @@
 <title>brain.js</title>
 <script src="../node_modules/brain.js/browser.js"></script>
 <style>
+body {
+	font-size: 10pt;
+	font-family: sans-serif, helvetica, arial;
+}
+
 canvas {
 	background-color: #889;
 	display: inline-block;
@@ -13,30 +18,64 @@ canvas {
 </head>
 <body>
 	<div>
-		<input id="layers" type="text" style="width: 40em" value="[16]">
-		<button id="go" onclick="go()">Go</button>
-		<button id="stop" onclick="stop()" disabled="true">Stop</button>
+		<table>
+			<tr>
+				<td>Sample Rate</td>
+				<td><input id="samplerate" type="text" style="width: 4em"
+					value="0.1"> <span id="samples"></span></td>
+			</tr>
+			<tr>
+				<td>Learning Rate</td>
+				<td><input id="learningRate" type="text" style="width: 4em"
+					value="0.3"></td>
+			</tr>
+			<tr>
+				<td>Hidden Layers</td>
+				<td>[<input id="layers" type="text" style="width: 8em"
+					value="12,8">]
+				</td>
+			</tr>
+			<tr>
+				<td>Activation</td>
+				<td><select id="activation">
+						<option value="sigmoid">sigmoid</option>
+						<option value="relu">relu</option>
+						<option value="tanh">tanh</option>
+				</select></td>
+			</tr>
+		</table>
+		<div>
+			<button id="go" onclick="go(false)">Go</button>
+			<button id="continue" onclick="go(true)">Continue</button>
+			<button id="stop" onclick="stop()" disabled="true">Stop</button>
+			<input id="gpu" type="checkbox">GPU
+			</button>
+		</div>
 	</div>
-	<div id="info" style="height: 2em"></div>
+	<div id="info" style="min-height: 2em; font-family: monospace"></div>
 	<canvas crossorigin="" id="target" width="400" height="400"></canvas>
 	<canvas id="result" width="400" height="400"></canvas>
 	<canvas id="diff" width="400" height="400"></canvas>
+	<div id="svg" style="height: 20em;"></div>
 </body>
 <script>
-var stopping, info, target,result,diff  ;
+var stopping, target,result,diff ;
 
 function breathe() {
   return new Promise(function(resolve){ setTimeout(resolve,0) }) ;
 }
 
-async function init(){
-  info = document.getElementById('info');
-  img = new Image();
-  img.src = "./image.jpeg";//"http://d1afx9quaogywf.cloudfront.net/sites/default/files/Logos/Twitter400x2302.png" ;
-  await new Promise(function(resolve,reject){ img.onload = resolve }) ;
+const ui = Array.from(document.getElementsByTagName("*")).reduce((a,e)=>(e.id?(a[e.id] = e):0,a),{});
 
-  [target,result,diff] = ['target','result','diff'].map(id => {
-    let e = document.getElementById(id) ;
+
+async function init(){
+  img = new Image()
+  img.Loaded = new Promise(function(resolve,reject){ img.onload = resolve });
+  img.src = "./image.jpeg";
+  await img.Loaded ;
+
+  [target,result,diff] = ['target','result','diff'].map(i => {
+    let e = ui[i] ;
     e.height = img.naturalHeight;
     e.width = img.naturalWidth;
     return e.getContext('2d');
@@ -48,17 +87,18 @@ async function init(){
 
 function stop(){
   stopping = true ;
-  document.getElementById('stop').disabled = true;
+  ui.stop.disabled = true;
 }
 
-async function go() {
+async function go(loadNet) {
   try {
   let fn ;
 
   stopping = false ;
 
-  document.getElementById('go').disabled = true;
-  document.getElementById('stop').disabled = false;
+  ui.go.disabled = true;
+  ui.continue.disabled = true;
+  ui.stop.disabled = false;
 
   await init() ;
   var imgData = target.getImageData(0,0,img.naturalWidth,img.naturalHeight).data;
@@ -75,17 +115,21 @@ async function go() {
     ctx.fillRect(x*img.naturalWidth,y*img.naturalHeight,n,n);
   }
 
-  var data = [] ;
-  for (let i=0; i<1000; i++) {
-    let x = Math.random() ;
-    let y = Math.random() ;
-    let z = pixelAt(x,y) ;
-    data.push({input:[x,y], output:z});
+  var data = [];
+  var sampleRate = +(ui.samplerate.value);
+  var learningRate = +(ui.learningRate.value);
+  for (let x=0; x<=1; x += (1/img.naturalWidth)) {
+    for (let y=0; y<=1; y += (1/img.naturalHeight)) {
+      if (Math.random() < sampleRate) {
+	    let z = pixelAt(x,y) ;
+	    data.push({input:[x,y], output:z});
+      } else {
+        let p = 0.66;//i++&1;
+        dot(target,x,y,[p,p,p]);
+      }
+    }
   }
-  
-  target.clearRect(0,0,img.naturalWidth,img.naturalHeight);
-  data.forEach(d => dot(target,d.input[0], d.input[1], d.output));
-
+  ui.samples.textContent = `${data.length} samples out of ${img.naturalWidth*img.naturalHeight}` ;
   await breathe();
   
   function runNet() {
@@ -100,33 +144,87 @@ async function go() {
     }
   }
 
-  var net = new brain.NeuralNetwork({
-    activation: 'sigmoid', // activation function
-    hiddenLayers: eval("("+document.getElementById('layers').value+")")
-  }) ;
+  let count = 0, saved ;
+  if (loadNet) {
+    saved = JSON.parse(localStorage.net) ;
+    Array.from(ui.activation.options).forEach(o => o.selected = o.value === saved.activation);
+    ui.layers.value = saved.sizes.slice(1,-1).join(",");
+    ui.learningRate.value = saved.trainOpts.learningRate;
+    count = +localStorage.count;
+  }
 
-  let count = 0, trainOpts = {
-      iterations: 100,    // the maximum times to iterate the training data --> number greater than 0
+  let type = ui.gpu.checked ? brain.NeuralNetworkGPU : brain.NeuralNetwork ;
+  var net = new type({
+    activation: ui.activation.selectedOptions[0].value, // activation function
+    hiddenLayers: eval("["+ui.layers.value+"]"),
+    learningRate
+  }) ;
+  
+  if (saved) {
+    net.fromJSON(saved) ;
+  }
+  
+  let trainOpts = {
+      timeout: 1000,
+      iterations: 1000,    // the maximum times to iterate the training data --> number greater than 0
       errorThresh: 1e-6,   // the acceptable error percentage from training data --> number between 0 and 1
-      log:false
+      log:false,
+      learningRate
     } ;
   while (!stopping) {
-    count += 1 ;
     let state = net.train(data, trainOpts) ;
-    info.textContent = JSON.stringify({count: count*trainOpts.iterations,error: state.error}) ;
+    count += state.iterations ;
+    ui.info.textContent = JSON.stringify({count,error: state.error}) ;
     runNet();
+    net.inputSize = net.sizes[0] ;
+    net.outputSize = net.sizes[net.sizes.length-1];
+    ui.svg.innerHTML = drawNet(net) ;
+    localStorage.net = JSON.stringify(net) ;
+    localStorage.count = count ;
     await breathe();
   }
   
   runNet() ;  
 
-  document.getElementById('go').disabled = false;
-  document.getElementById('stop').disabled = true;
+  ui.go.disabled = false;
+  ui.continue.disabled = false;
+  ui.stop.disabled = true;
   } catch (ex) {
-    info.textContent = ex.message;
+    ui.info.textContent = ex.message;
   } 
 }
 
 init();
+
+function drawNet(net) {
+  // return an SVG string representing the state of the net
+  let size = 10 ;
+  let width = net.sizes.length * 15 * size ;
+  let height = Math.max(...net.sizes) * 5 * size ;
+  
+  function centreOf(layer,j) {
+    return {cx: layer * size * 15 + size, cy: (j+0.5) * height/net.sizes[layer] + size/2 }
+  }
+  return `
+  <svg  xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" width="${width}" height="${height}">
+  ${net.sizes.map((s,i) => {
+    return Array(net.sizes[i]).fill(0).map((_,j) => {
+      let {cx,cy} = centreOf(i,j);
+      let circle = `<circle cx="${cx}" cy="${cy}" r="${size}"/>`;
+      let lines = '' ;
+      if (i > 0) {
+        lines = Array.from(net.weights[i][j]).map((w,k) => {
+          let end = centreOf(i-1,k);
+          let color = 245-Math.min(Math.max((w*5)|0 + 128,0),245) ;
+          return `<line onclick="((e,i,j) => {debugger})(this,${i},${j})" x1="${cx}" y1="${cy}" x2="${end.cx}" y2="${end.cy}" style="stroke: rgb(${color},${color},${color}); stroke-width:${0.5+Math.log(w*4)}"/>`;
+        });
+        lines = lines.join("\n");
+      }
+      return lines+circle ;
+    }).join("\n")
+  }).join("\n")}
+  </svg>
+  `;
+}
 </script>
 </html>
