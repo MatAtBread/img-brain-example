@@ -20,6 +20,11 @@ canvas {
 	<div>
 		<table>
 			<tr>
+				<td>Img src</td>
+				<td><input id="imgsrc" type="text" style="width: 40em"
+					value="image.jpeg">
+			</tr>
+			<tr>
 				<td>Sample Rate</td>
 				<td><input id="samplerate" type="text" style="width: 4em"
 					value="0.1"> <span id="samples"></span></td>
@@ -66,11 +71,12 @@ function breathe() {
 }
 
 const ui = Array.from(document.getElementsByTagName("*")).reduce((a,e)=>(e.id && (a[e.id] = e),a),{});
+ui.imgsrc.onchange = init ;
 
 async function init(){
   img = new Image()
   img.Loaded = new Promise(function(resolve,reject){ img.onload = resolve });
-  img.src = "./image.jpeg";
+  img.src = "/"+ui.imgsrc.value ;
   await img.Loaded ;
 
   [target,result,diff] = ['target','result','diff'].map(i => {
@@ -163,6 +169,7 @@ async function go(loadNet) {
     net.fromJSON(saved) ;
   }
   
+  let bestError = 1 ;
   let trainOpts = {
       timeout: 1000,
       iterations: 1000,    // the maximum times to iterate the training data --> number greater than 0
@@ -178,8 +185,11 @@ async function go(loadNet) {
     net.inputSize = net.sizes[0] ;
     net.outputSize = net.sizes[net.sizes.length-1];
     ui.svg.innerHTML = drawNet(net) ;
-    localStorage.net = JSON.stringify(net) ;
-    localStorage.count = count ;
+    if (bestError > state.error) {
+      bestError = state.error ;
+      localStorage.net = JSON.stringify(net) ;
+      localStorage.count = count ;
+    }
     await breathe();
   }
   

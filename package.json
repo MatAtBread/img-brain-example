@@ -2,14 +2,14 @@
   "name": "img-brain-example",
   "version": "1.0.0",
   "description": "",
+  "main": "web.js",
   "dependencies": {
     "brain.js": "^1.6.1",
-    "http-server": "^0.11.1"
+    "mime": "^2.4.0"
   },
-  "devDependencies": {},
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "web": "http-server www"
+    "web": "node web.js"
   },
   "author": "matAtBread",
   "license": "ISC"
