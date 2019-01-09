@@ -30,15 +30,16 @@ function proxy(res, req) {
 }
 
 const requestHandler = (req, res) => {
-  if (req.url==='/')
-    req.url = '/index.html';
-
   if (req.url.startsWith("/http")) {
     req.url = req.url.slice(1);
     return proxy(res,req);
   }
 
   try {
+    if (req.url==='/')
+      req.url = '/index.html';
+    if (req.url.indexOf("..")>=0)
+      throw new Error("Bad URL");
     const data = fs.readFileSync('www'+req.url) ;
     const contentType = mime.getType(req.url.split(".").pop()) || "application/octet-stream" ;
     res.writeHead(200,{'Content-type':contentType}) ;
