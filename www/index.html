@@ -123,8 +123,10 @@ async function go(loadNet) {
   var data = [];
   var sampleRate = +(ui.samplerate.value);
   var learningRate = +(ui.learningRate.value);
-  for (let x=0; x<=1; x += (1/img.naturalWidth)) {
-    for (let y=0; y<=1; y += (1/img.naturalHeight)) {
+  for (let cx=0; cx<img.naturalWidth; cx++) {
+    let x = cx/img.naturalWidth ;
+    for (let cy=0; cy<img.naturalHeight; cy++) {
+      let y = cy/img.naturalHeight ;
       if (Math.random() < sampleRate) {
 	    let z = pixelAt(x,y) ;
 	    data.push({input:[x,y], output:z});
@@ -138,8 +140,10 @@ async function go(loadNet) {
   await breathe();
   
   function runNet() {
-    for (let x=0; x<=1; x += (1/img.naturalWidth)) {
-      for (let y=0; y<=1; y += (1/img.naturalHeight)) {
+    for (let cx=0; cx<img.naturalWidth; cx++) {
+      let x = cx/img.naturalWidth ;
+      for (let cy=0; cy<img.naturalHeight; cy++) {
+        let y = cy/img.naturalHeight ;
           let z0 = pixelAt(x,y) ;
           let z1 = net.run([x,y]) ;
           dot(result,x,y,z1);
@@ -179,6 +183,8 @@ async function go(loadNet) {
     } ;
   while (!stopping) {
     let state = net.train(data, trainOpts) ;
+    if (!state || isNaN(state.error))
+      throw new Error("Training failed!") ;
     count += state.iterations ;
     ui.info.textContent = JSON.stringify({count,error: state.error}) ;
     runNet();
@@ -195,12 +201,13 @@ async function go(loadNet) {
   
   runNet() ;  
 
-  ui.go.disabled = false;
-  ui.continue.disabled = false;
-  ui.stop.disabled = true;
   } catch (ex) {
     ui.info.textContent = ex.message;
-  } 
+  } finally {
+    ui.go.disabled = false;
+    ui.continue.disabled = false;
+    ui.stop.disabled = true;
+  }
 }
 
 init();
